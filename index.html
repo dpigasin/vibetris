@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIBETRIS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #crt {
+    position: relative;
+    background: #0a0a0a;
+    border: 3px solid #333;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 0 40px rgba(0,255,0,0.05), inset 0 0 80px rgba(0,0,0,0.5);
+  }
+
+  #crt::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 3px);
+    pointer-events: none;
+    z-index: 10;
+    border-radius: 10px;
+  }
+
+  #wrapper {
+    display: grid;
+    grid-template-columns: 110px auto 110px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .side-panel { display: flex; flex-direction: column; gap: 12px; }
+
+  .panel-box {
+    background: #000;
+    border: 2px solid #444;
+    border-radius: 4px;
+    padding: 8px;
+    min-width: 110px;
+    width: 100%;
+  }
+
+  .panel-label {
+    color: #888;
+    font-size: 7px;
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  .panel-value {
+    color: #fff;
+    font-size: 12px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    width: 100%;
+    line-height: 1.4;
+  }
+
+  canvas {
+    display: block;
+    margin: 0 auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #gameCanvas {
+    border: 2px solid #555;
+    border-radius: 2px;
+    background: #000;
+  }
+
+  #title {
+    color: #ff0000;
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 8px;
+    text-shadow: 2px 2px #880000;
+    letter-spacing: 2px;
+  }
+
+  #overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 20;
+    display: none;
+    background: rgba(0,0,0,0.85);
+    padding: 24px 32px;
+    border: 2px solid #fff;
+    border-radius: 4px;
+    min-width: 300px;
+  }
+
+  #overlay.active { display: block; }
+
+  #overlay .msg { color: #fff; font-size: 16px; margin-bottom: 14px; }
+
+  #overlay .sub {
+    color: #ff0;
+    font-size: 10px;
+    animation: blink 1s infinite;
+    white-space: nowrap;
+  }
+
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  #controls {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 2.2;
+    width: 100%;
+    color: #ffffff;
+  }
+
+  .key, .label {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    vertical-align: middle;
+    display: inline-block;
+  }
+
+  .key { color: #ff0000; margin: 0 5px; }
+  .label { color: #ffffff; margin: 0 10px; }
+  .arrow { font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="crt">
+  <div id="title">V I B E T R I S</div>
+  <div id="wrapper">
+    <div class="side-panel">
+      <div class="panel-box"><div class="panel-label">HOLD</div><canvas id="holdCanvas" width="80" height="80"></canvas></div>
+      <div class="panel-box"><div class="panel-label">SCORE</div><div class="panel-value" id="score">0000000</div></div>
+      <div class="panel-box"><div class="panel-label">LEVEL</div><div class="panel-value" id="level">1</div></div>
+      <div class="panel-box"><div class="panel-label">LINES</div><div class="panel-value" id="lines">000</div></div>
+    </div>
+    <canvas id="gameCanvas" width="240" height="480"></canvas>
+    <div class="side-panel">
+      <div class="panel-box"><div class="panel-label">NEXT</div><canvas id="nextCanvas" width="80" height="320"></canvas></div>
+    </div>
+  </div>
+  <div id="overlay">
+    <div class="msg" id="overlayMsg">GAME OVER</div>
+    <div class="sub">PRESS ENTER TO START</div>
+  </div>
+</div>
+<div id="controls">
+  <span class="key arrow">←</span><span class="key arrow">→</span> <span class="label">MOVE</span>
+  &nbsp;&nbsp;<span class="key arrow">↑</span> <span class="label">ROTATE CW</span> &nbsp;&nbsp;<span class="key">Z</span> <span class="label">ROTATE CCW</span> &nbsp;&nbsp;<span class="key">P</span> <span class="label">PAUSE</span><br>
+  <span class="key arrow">↓</span> <span class="label">SOFT DROP</span> &nbsp;&nbsp;<span class="key">SPACE</span> <span class="label">HARD DROP</span> &nbsp;&nbsp;<span class="key">C</span> <span class="label">HOLD</span>
+</div>
+<script>
+(function() {
+  const CONFIG = {
+    COLS: 10, ROWS: 20, BLOCK: 24, PREVIEW: 16,
+    SPEEDS: [800,720,630,550,470,380,300,220,140,100, 83,83,83,67,67,67,50,50,50,50],
+    COLORS: {
+      I: { main:'#00e5e5', light:'#80ffff', dark:'#009999', shadow:'#005555' },
+      O: { main:'#ffe040', light:'#fff080', dark:'#ccaa00', shadow:'#887700' },
+      T: { main:'#b040d0', light:'#d890f0', dark:'#7020a0', shadow:'#440066' },
+      S: { main:'#40d040', light:'#80f080', dark:'#20a020', shadow:'#006600' },
+      Z: { main:'#e04040', light:'#ff8080', dark:'#aa2020', shadow:'#660000' },
+      J: { main:'#4060e0', light:'#80a0ff', dark:'#2030aa', shadow:'#001066' },
+      L: { main:'#e09020', light:'#ffc060', dark:'#aa6000', shadow:'#663300' },
+      D: { main:'#1a1a2e', light:'#2a2a3e', dark:'#0f0f1e', shadow:'#000000' }
+    },
+    SHAPES: {
+      I: [[0,0],[1,0],[2,0],[3,0]],
+      O: [[0,0],[1,0],[0,1],[1,1]],
+      T: [[0,0],[1,0],[2,0],[1,1]],
+      S: [[1,0],[2,0],[0,1],[1,1]],
+      Z: [[0,0],[1,0],[1,1],[2,1]],
+      J: [[0,0],[0,1],[1,1],[2,1]],
+      L: [[2,0],[0,1],[1,1],[2,1]]
+    },
+    KICKS: {
+      JLSTZ: {
+        '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+        '1>2': [[0,0],[1,0],[1,1],[0,-2],[1,-2]], '2>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+        '2>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]], '3>2': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+        '3>0': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '0>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]]
+      },
+      I: {
+        '0>1': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]], '1>0': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+        '1>2': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]], '2>1': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+        '2>3': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]], '3>2': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+        '3>0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]], '0>3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]]
+      }
+    }
+  };
+
+  const State = {
+    board: [], colors: [], current: null, nextQueue: [], bag: [],
+    score: 0, level: 1, lines: 0, combo: -1, backToBack: false,
+    gameOver: false, gameStarted: false, paused: false, softDropping: false,
+    holdPiece: null, canHold: true, dropCounter: 0, lastTime: 0,
+    clearingLines: [], lastClearTime: 0
+  };
+
+  const DOM = {
+    gameCanvas: document.getElementById('gameCanvas'),
+    nextCanvas: document.getElementById('nextCanvas'),
+    holdCanvas: document.getElementById('holdCanvas'),
+    ctx: document.getElementById('gameCanvas').getContext('2d'),
+    nextCtx: document.getElementById('nextCanvas').getContext('2d'),
+    holdCtx: document.getElementById('holdCanvas').getContext('2d'),
+    score: document.getElementById('score'),
+    level: document.getElementById('level'),
+    lines: document.getElementById('lines'),
+    overlay: document.getElementById('overlay'),
+    overlayMsg: document.getElementById('overlayMsg')
+  };
+
+  function createBoard() {
+    State.board = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(false));
+    State.colors = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(null));
+  }
+
+  function isValid(positions) {
+    for (const [x, y] of positions) {
+      if (x < 0 || x >= CONFIG.COLS || y >= CONFIG.ROWS) return false;
+      if (y >= 0 && State.board[y][x]) return false;
+    }
+    return true;
+  }
+
+  function getRotatedShape(type, rotation) {
+    let s = CONFIG.SHAPES[type].map(([x, y]) => [x, y]);
+    for (let i = 0; i < ((rotation % 4) + 4) % 4; i++) {
+      let minX = Math.min(...s.map(p=>p[0])), maxX = Math.max(...s.map(p=>p[0]));
+      let minY = Math.min(...s.map(p=>p[1])), maxY = Math.max(...s.map(p=>p[1]));
+      let cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+      s = s.map(([x, y]) => [Math.round(-(y - cy) + cx), Math.round((x - cx) + cy)]);
+      let fMinX = Math.min(...s.map(p=>p[0])), fMinY = Math.min(...s.map(p=>p[1]));
+      s = s.map(([x, y]) => [x - fMinX, y - fMinY]);
+    }
+    return s;
+  }
+
+  function getAbsolutePositions(type, rot, x, y) {
+    return getRotatedShape(type, rot).map(([bx, by]) => [bx + x, by + y]);
+  }
+
+  function tryRotate(dir) {
+    if (!State.gameStarted || State.gameOver || State.paused || !State.current) return;
+    const { type, rot, x, y } = State.current;
+    const newRot = ((rot + dir) % 4 + 4) % 4;
+    const abs = getAbsolutePositions(type, newRot, x, y);
+    if (isValid(abs)) {
+      State.current = { ...State.current, rot: newRot };
+      return;
+    }
+    const kicks = CONFIG.KICKS[type === 'I' ? 'I' : 'JLSTZ'][`${rot}>${newRot}`] || [];
+    for (const [kx, ky] of kicks) {
+      const test = getAbsolutePositions(type, newRot, x + kx, y + ky);
+      if (isValid(test)) {
+        State.current = { ...State.current, rot: newRot, x: x + kx, y: y + ky };
+        return;
+      }
+    }
+  }
+
+  function move(dx, dy) {
+    const { type, rot, x, y } = State.current;
+    const test = getAbsolutePositions(type, rot, x + dx, y + dy);
+    if (isValid(test)) {
+      State.current = { ...State.current, x: x + dx, y: y + dy };
+      return true;
+    }
+    return false;
+  }
+
+  function hardDrop() {
+    while (move(0, 1)) State.score += 2;
+    lock();
+  }
+
+  function doHold() {
+    if (!State.canHold) return;
+    State.canHold = false;
+    const prev = State.holdPiece;
+    State.holdPiece = State.current.type;
+
+    if (prev) {
+      const shape = getRotatedShape(prev, 0);
+      const w = Math.max(...shape.map(p=>p[0])) - Math.min(...shape.map(p=>p[0])) + 1;
+      const offX = Math.floor((CONFIG.COLS - w) / 2) - Math.min(...shape.map(p=>p[0]));
+      State.current = { type: prev, rot: 0, x: offX, y: 0 };
+    } else {
+      spawnNext();
+    }
+  }
+
+  function ensureBag() {
+    if (State.bag.length < 7) {
+      const pieces = ['I','O','T','S','Z','J','L'];
+      for (let i = pieces.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
+      }
+      State.bag.push(...pieces);
+    }
+  }
+
+  function ensureQueue() {
+    while (State.nextQueue.length < 7) { ensureBag(); State.nextQueue.push(State.bag.shift()); }
+  }
+
+  function spawnNext() {
+    ensureQueue();
+    const type = State.nextQueue.shift();
+    const shape = getRotatedShape(type, 0);
+    const w = Math.max(...shape.map(p=>p[0])) - Math.min(...shape.map(p=>p[0])) + 1;
+    const offX = Math.floor((CONFIG.COLS - w) / 2) - Math.min(...shape.map(p=>p[0]));
+    State.current = { type, rot: 0, x: offX, y: 0 };
+    if (!isValid(getAbsolutePositions(type, 0, offX, 0))) {
+      State.gameOver = true;
+      showOverlay('GAME OVER', `SCORE: ${State.score.toString().padStart(7, '0')}`);
+    }
+  }
+
+  function lock() {
+    const col = CONFIG.COLORS[State.current.type];
+    getAbsolutePositions(State.current.type, State.current.rot, State.current.x, State.current.y)
+      .forEach(([x, y]) => { if (y >= 0 && y < CONFIG.ROWS && x >= 0 && x < CONFIG.COLS) { State.board[y][x] = true; State.colors[y][x] = col; } });
+
+    let isTSpin = false;
+    if (State.current.type === 'T') {
+      const [tx, ty] = getAbsolutePositions(State.current.type, State.current.rot, State.current.x, State.current.y)[1];
+      let blocked = [[tx-1,ty-1],[tx+1,ty-1],[tx-1,ty+1],[tx+1,ty+1]].filter(([cx, cy]) => cx < 0 || cx >= CONFIG.COLS || cy >= CONFIG.ROWS || (cy >= 0 && State.board[cy][cx])).length;
+      if (blocked >= 3) isTSpin = true;
+    }
+
+    const cleared = [];
+    for (let r = CONFIG.ROWS - 1; r >= 0; r--) { if (State.board[r].every(c => c)) cleared.push(r); }
+
+    if (cleared.length > 0) {
+      State.clearingLines = cleared;
+      State.lastClearTime = performance.now();
+      State.combo++;
+      if (isTSpin) {
+        State.score += ({ 4: 1600, 2: 1200, 1: 800, 0: 400 }[cleared.length] || 0) * State.level;
+        State.backToBack = true;
+      } else {
+        State.score += ({ 4: 1200, 3: 300, 2: 100, 1: 40 }[cleared.length] || 0) * State.level;
+        if (State.backToBack) State.score = Math.floor(State.score * 1.5);
+        State.backToBack = cleared.length >= 2;
+      }
+      if (State.combo > 0) State.score += 50 * State.combo * State.level;
+      for (const r of cleared.sort((a,b) => a-b)) {
+        State.board.splice(r, 1); State.colors.splice(r, 1);
+        State.board.unshift(Array(CONFIG.COLS).fill(false)); State.colors.unshift(Array(CONFIG.COLS).fill(null));
+      }
+      State.lines += cleared.length;
+      State.level = Math.floor(State.lines / 10) + 1;
+    } else { State.combo = -1; State.backToBack = false; }
+
+    updateUI();
+    spawnNext();
+    State.canHold = true;
+  }
+
+  function updateUI() {
+    DOM.score.textContent = State.score.toString().padStart(7, '0');
+    DOM.level.textContent = State.level;
+    DOM.lines.textContent = State.lines.toString().padStart(3, '0');
+  }
+
+  function showOverlay(msg, sub) {
+    DOM.overlayMsg.textContent = msg;
+    DOM.overlay.querySelector('.sub').textContent = sub || 'PRESS ENTER';
+    DOM.overlay.classList.add('active');
+  }
+
+  function drawBlock(ctx, x, y, w, h, c) {
+    if (!c) return;
+    ctx.fillStyle = c.main; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = c.light; ctx.fillRect(x, y, w, 2); ctx.fillRect(x, y, 2, h); ctx.fillRect(x+3, y+2, 2, 2); ctx.fillRect(x+2, y+3, 2, 2);
+    ctx.fillStyle = c.dark; ctx.fillRect(x, y+h-2, w, 2); ctx.fillRect(x+w-2, y, 2, h);
+    ctx.fillStyle = c.shadow; ctx.fillRect(x+w-5, y+h-4, 2, 2); ctx.fillRect(x+w-4, y+h-5, 2, 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.strokeRect(x+0.5, y+0.5, w-1, h-1);
+  }
+
+  function render() {
+    const { ctx, gameCanvas } = DOM;
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1;
+    for (let r = 1; r < CONFIG.ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*CONFIG.BLOCK); ctx.lineTo(CONFIG.COLS*CONFIG.BLOCK, r*CONFIG.BLOCK); ctx.stroke(); }
+    for (let c = 1; c < CONFIG.COLS; c++) { ctx.beginPath(); ctx.moveTo(c*CONFIG.BLOCK, 0); ctx.lineTo(c*CONFIG.BLOCK, CONFIG.ROWS*CONFIG.BLOCK); ctx.stroke(); }
+
+    const now = performance.now(), elapsed = now - State.lastClearTime, isClearing = State.clearingLines.length > 0 && elapsed < 300;
+    for (let r = 0; r < CONFIG.ROWS; r++) {
+      for (let c = 0; c < CONFIG.COLS; c++) {
+        if (isClearing && State.clearingLines.includes(r)) { ctx.fillStyle = Math.sin(elapsed * 0.025) > 0 ? '#fff' : '#222'; ctx.fillRect(c*CONFIG.BLOCK+1, r*CONFIG.BLOCK+1, CONFIG.BLOCK-2, CONFIG.BLOCK-2); continue; }
+        if (State.board[r][c] && State.colors[r][c]) drawBlock(ctx, c*CONFIG.BLOCK, r*CONFIG.BLOCK, CONFIG.BLOCK, CONFIG.BLOCK, State.colors[r][c]);
+        else { ctx.fillStyle = 'rgba(255,255,255,0.015)'; ctx.fillRect(c*CONFIG.BLOCK+1, r*CONFIG.BLOCK+1, CONFIG.BLOCK-2, CONFIG.BLOCK-2); }
+      }
+    }
+
+    if (State.current && !State.gameOver && State.gameStarted) {
+      const { type, rot, x, y } = State.current;
+      const abs = getAbsolutePositions(type, rot, x, y);
+      let gy = 0; while (isValid(abs.map(([bx, by]) => [bx, by + gy + 1]))) gy++;
+      abs.forEach(([bx, by]) => {
+        const dy = by + gy;
+        if (dy >= 0) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.setLineDash([2,3]); ctx.strokeRect(bx*CONFIG.BLOCK+3, dy*CONFIG.BLOCK+3, CONFIG.BLOCK-6, CONFIG.BLOCK-6); ctx.setLineDash([]);
+          ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(bx*CONFIG.BLOCK, dy*CONFIG.BLOCK, CONFIG.BLOCK, CONFIG.BLOCK);
+        }
+      });
+      abs.forEach(([bx, by]) => { if (by >= 0) drawBlock(ctx, bx*CONFIG.BLOCK, by*CONFIG.BLOCK, CONFIG.BLOCK, CONFIG.BLOCK, CONFIG.COLORS[type]); });
+    }
+
+    const { nextCtx, nextCanvas } = DOM;
+    nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+    State.nextQueue.slice(0, 5).forEach((type, i) => {
+      const shape = getRotatedShape(type, 0);
+      const w = (Math.max(...shape.map(p=>p[0])) - Math.min(...shape.map(p=>p[0])) + 1) * CONFIG.PREVIEW;
+      const h = (Math.max(...shape.map(p=>p[1])) - Math.min(...shape.map(p=>p[1])) + 1) * CONFIG.PREVIEW;
+      shape.forEach(([bx, by]) => drawBlock(nextCtx, (80 - w)/2 + (bx - Math.min(...shape.map(p=>p[0])))*CONFIG.PREVIEW, i*64 + (64-h)/2 + (by - Math.min(...shape.map(p=>p[1])))*CONFIG.PREVIEW, CONFIG.PREVIEW, CONFIG.PREVIEW, CONFIG.COLORS[type]));
+    });
+
+    const { holdCtx, holdCanvas } = DOM;
+    holdCtx.fillStyle = '#000'; holdCtx.fillRect(0, 0, holdCanvas.width, holdCanvas.height);
+    if (State.holdPiece) {
+      const shape = getRotatedShape(State.holdPiece, 0);
+      const w = (Math.max(...shape.map(p=>p[0])) - Math.min(...shape.map(p=>p[0])) + 1) * CONFIG.PREVIEW;
+      const h = (Math.max(...shape.map(p=>p[1])) - Math.min(...shape.map(p=>p[1])) + 1) * CONFIG.PREVIEW;
+      shape.forEach(([bx, by]) => drawBlock(holdCtx, (80 - w)/2 + (bx - Math.min(...shape.map(p=>p[0])))*CONFIG.PREVIEW, (80 - h)/2 + (by - Math.min(...shape.map(p=>p[1])))*CONFIG.PREVIEW, CONFIG.PREVIEW, CONFIG.PREVIEW, State.holdPiece === State.current?.type ? CONFIG.COLORS.D : CONFIG.COLORS[State.holdPiece]));
+    }
+  }
+
+  function gameLoop(time) {
+    requestAnimationFrame(gameLoop);
+    if (!State.lastTime) State.lastTime = time;
+    const delta = Math.min(time - State.lastTime, 200);
+    State.lastTime = time;
+
+    if (!State.gameStarted || State.gameOver || State.paused) { render(); return; }
+
+    State.dropCounter += State.softDropping ? delta * 20 : delta;
+    if (State.dropCounter >= CONFIG.SPEEDS[Math.min(State.level - 1, CONFIG.SPEEDS.length - 1)]) {
+      State.dropCounter -= CONFIG.SPEEDS[Math.min(State.level - 1, CONFIG.SPEEDS.length - 1)];
+      if (!move(0, 1)) lock();
+      else if (State.softDropping) State.score += 1;
+    }
+    render();
+  }
+
+  function init() {
+    createBoard();
+    Object.assign(State, { score:0, level:1, lines:0, combo:-1, backToBack:false, gameOver:false, gameStarted:true, paused:false, softDropping:false, holdPiece:null, canHold:true, bag:[], nextQueue:[], dropCounter:0, lastTime:0, clearingLines:[], lastClearTime:0 });
+    updateUI();
+    DOM.overlay.classList.remove('active');
+    spawnNext();
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Enter') { if (!State.gameStarted || State.gameOver) init(); return; }
+    if (e.code === 'KeyP' || e.code === 'Escape') {
+      if (State.gameStarted && !State.gameOver) { State.paused = !State.paused; State.paused ? showOverlay('PAUSED', 'PRESS P') : DOM.overlay.classList.remove('active'); }
+      return;
+    }
+    if (State.gameOver || !State.gameStarted || State.paused) return;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    switch(e.code) {
+      case 'ArrowLeft': case 'KeyA': if(!e.repeat) move(-1, 0); break;
+      case 'ArrowRight': case 'KeyD': if(!e.repeat) move(1, 0); break;
+      case 'ArrowDown': case 'KeyS': State.softDropping = true; break;
+      case 'ArrowUp': case 'KeyX': if(!e.repeat) tryRotate(1); break;
+      case 'KeyZ': if(!e.repeat) tryRotate(-1); break;
+      case 'Space': if(!e.repeat) hardDrop(); break;
+      case 'KeyC': case 'ShiftLeft': case 'ShiftRight': doHold(); break;
+    }
+  });
+
+  document.addEventListener('keyup', e => { if (e.code === 'ArrowDown' || e.code === 'KeyS') State.softDropping = false; });
+
+  createBoard();
+  updateUI();
+  showOverlay('VIBETRIS', 'PRESS ENTER TO START');
+  render();
+  requestAnimationFrame(gameLoop);
+})();
+</script>
+</body>
+</html>
